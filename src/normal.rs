@@ -7,7 +7,7 @@ struct Params {
 }
 
 
-fn gen_white_noise(params: &Params) -> f64{
+fn gen_white_noise(_params: &Params) -> f64{
     let mut rng = rand::thread_rng();
     let mut sum = 0.0;
 
@@ -23,8 +23,6 @@ fn gen_white_noise(params: &Params) -> f64{
 
 pub (crate)
 fn generate_standart_random(params: Params) -> f64 {
-    let mut sample = 0.0;
-
     let sample = params.miu + gen_white_noise(&params) * params.sigma;
 
     sample
