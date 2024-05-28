@@ -1,10 +1,11 @@
-pub mod normal;
 use rand::Rng;
+use rand_distr::{Distribution, Normal};
 
 // внешние факторы
 const COST: f64 = 10.0; // цена за хранение на складе на единицу продукции в рублях
 const PRODUCT_COST: f64 = 100.0; // себестоимость единицы продукции в рублях
 
+#[derive(Debug)]
 struct Params {
     start_storage: u32, // начальный объем готовой продукции на складе, в шт.
     max_storage: u32, // максимальный допустимый объем продукции на складе, в шт.
@@ -17,6 +18,7 @@ struct Params {
     sigma_sales: f64, // разброс количества продаж за период
 }
 
+#[derive(Debug)]
 struct Output {
     revenue: f64, // доход от продажи продукции за период, в рублях
     general_loss: f64, // убытки от недопроизводства или затраты на хранение, в рублях
@@ -24,6 +26,7 @@ struct Output {
     mean: f64, // среднее значение deltas за всё время
 }
 
+#[derive(Debug)]
 struct InventoryManager {
     params: Params,
     storage: u32, // количество готовой продукции на складе, в шт.
@@ -56,16 +59,18 @@ impl InventoryManager {
     }
 
     fn gen_normal_price(&mut self) {
-        self.price = normal::generate_standart_random(normal::Params {miu: self.params.mean_price, sigma: self.params.sigma_price});
+        let normal_dist = Normal::new(self.params.mean_price, self.params.sigma_price).unwrap();
+        self.price = normal_dist.sample(&mut rand::thread_rng());
     }
 
     fn gen_normal_sales(&mut self) {
-        self.sales = normal::generate_standart_random(normal::Params {miu: self.params.mean_sales, sigma: self.params.sigma_sales}).floor() as u32;
+        let normal_dist = Normal::new(self.params.mean_sales, self.params.sigma_sales).unwrap();
+        self.sales = normal_dist.sample(&mut rand::thread_rng()).round() as u32;
     }
 
     fn gen_production(&mut self) {
-        let delta_production = rand::thread_rng().gen_range(-self.params.factor..self.params.factor);
-        self.production = (self.params.power + delta_production).floor() as u32;
+        let delta_production = rand::thread_rng().gen_range(-self.params.factor..=self.params.factor);
+        self.production = (self.params.power + delta_production).round() as u32;
     }
 
     fn modeling_iteration(&mut self) {
@@ -73,7 +78,7 @@ impl InventoryManager {
         self.gen_normal_sales();
         self.gen_production();
 
-        if self.storage + self.production < self.params.max_storage {
+        if self.storage + self.production <= self.params.max_storage {
             self.storage += self.production;
         } else {
             let product_loss = self.production - (self.params.max_storage - self.storage);
@@ -81,6 +86,8 @@ impl InventoryManager {
             self.loss += product_loss as f64 * PRODUCT_COST;
             self.out.general_loss += product_loss as f64;
         }
+
+        self.calc_revenue();
     }
 
     fn calc_revenue(&mut self) {
@@ -104,7 +111,7 @@ impl InventoryManager {
 
     fn calc_mean(&mut self) {
         if !self.out.deltas.is_empty() {
-            self.out.mean = self.out.deltas.iter().sum::<i32>() as f64 / self.out.deltas.len() as f64;
+            self.out.mean = self.out.deltas.iter().copied().sum::<i32>() as f64 / self.out.deltas.len() as f64;
         }
     }
 
@@ -113,9 +120,8 @@ impl InventoryManager {
             self.reset_output();
             for _ in 0..self.params.period_len {
                 self.modeling_iteration();
-                self.calc_revenue();
-                self.calc_mean();
             }
+            self.calc_mean();
             self.write_output();
         }
     }
